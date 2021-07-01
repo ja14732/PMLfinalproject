@@ -1,0 +1,130 @@
+---
+title: "PML Final Project"
+author: "Joseph Michalski"
+date: "6/30/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+This is the final project for Coursera's Practical Machine Learning course through the Data Science Specialization track, taught by John Hopkins University.
+
+The purpose of this project is to use data from acceleromoters on the belt, forearm, arm and dumbell of 6 selected participants to predict the manner they performed a lift.  This is the "classe" variable in the training set.  Then, using the random forest model.  Then, we predict using a validation set randomly selected from the training dataset to obtain the accuracy/oos error rate. 
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har.If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+## Loading Libraries and Data
+
+First, the libraries and data must be loaded.  Note that, for this project, the data was downloaded into the working directory then loaded into R.  There are other methods to do so, but this was the one that was used.
+
+```{r libraries and data}
+library(lattice)
+library(ggplot2)
+library(caret)
+library(kernlab)
+library(rattle)
+library(corrplot)
+
+train.csv <- read.csv("pml-training.csv")
+test.csv <- read.csv("pml-testing.csv")
+```
+
+Now, a seed will be set for reproducibility and then check the dimensions of our dataset.
+
+```{r seed and dimesions}
+set.seed(1234)
+dim(train.csv)
+dim(test.csv)
+```
+
+There are 160 variables and 19622 observations in the training set, but only 20 observations in the test set.  Obviously, this is for the prediction portion of this project.  Now, the data must be cleaned.
+
+## Cleaning Data
+
+First, all variables that are primarily NA values should be removed.  Also, the first seven columns will be removed, as they are identifiers.
+
+```{r NA removal}
+train.csv <- train.csv[,colMeans(is.na(train.csv)) < .9]
+train.csv <- train.csv[,-c(1:7)]
+```
+
+Next, near zero variance variables will be removed.  They simply are unnecessary for the analysis.
+
+```{r near-zero variance}
+nvz <- nearZeroVar(train.csv)
+train.csv <- train.csv[,-nvz]
+```
+
+Checking to see how much has been removed:
+
+```{r dimension, cleaning 1}
+dim(train.csv)
+```
+
+A total of 117 variables have been removed using this analysis, all of whom would likely have no effect on the values.  Next, the training set will be split into two sets: a validation and sub training set.  The original dataset (train.csv) will be left alone for the test cases.
+
+```{r training set}
+inTrain <- createDataPartition(y=train.csv$classe, p=0.75, list=F)
+train <- train.csv[inTrain,]
+valid <- train.csv[-inTrain,]
+```
+
+The data has been sufficiently cleaned for model building and testing.
+
+Before doing so, however, it may be helpful to create a correlation matrix to see how these variables interact together.  The below code will do so.
+
+```{r correlation plot}
+corrPlot <- cor(train[, -length(names(train))])
+corrplot(corrPlot, method="color")
+```
+
+
+## Creating the Model and Testing
+
+Before creating the random forest model, a control set will be created for cross validation.
+
+```{r control}
+control <- trainControl(method="cv", number=3, verbose=FALSE)
+```
+
+Now, the model will be built using the below code.
+
+```{r model building}
+mod_rf<- train(classe~.,data=train,method="rf",trControl=control)
+```
+
+Finally, the model is tested below.
+```{r testing the model}
+pred_rf <- predict(mod_rf, valid)
+cmrf <- confusionMatrix(pred_rf, factor(valid$classe))
+cmrf
+```
+
+As can be seen, the model is quite accurate, with an accuracy value of .9953.  This is, therefore, a sufficient model to be used on the test set.
+
+## Predictions
+
+For the final portion of the project, the test set will be run to predict the classe outcome for the 20 cases in the test set.
+
+```{r prediction}
+prediction <- predict(mod_rf, test.csv)
+print(prediction)
+```
+
+These will be used for the quiz at the end of this module.
